@@ -1,0 +1,11 @@
+# Sensitive financial data — never commit.
+statements/*
+data/*
+reports/*
+
+# Email credentials.
+scripts/.env
+
+# Python
+__pycache__/
+*.pyc
