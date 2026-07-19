@@ -3,10 +3,12 @@
 
 Usage:
     python3 scripts/send_report.py reports/snapshot_2026_07_18/report.md
+    python3 scripts/send_report.py reports/snapshot_2026_07_18/report.md extra.xlsx ...
 
 The report (Markdown) is converted to mobile-friendly HTML. The email is sent as a
 multipart message: an HTML body that renders cleanly in phone mail apps, a plaintext
-fallback, and an .html attachment that opens in any phone browser.
+fallback, and an .html attachment that opens in any phone browser. Any extra file
+paths passed after the report are attached as-is (e.g. an .xlsx workbook).
 
 Configuration is read from scripts/.env (see scripts/.env.example). Required keys:
     GMAIL_ADDRESS      the sending Gmail account
@@ -15,6 +17,7 @@ Configuration is read from scripts/.env (see scripts/.env.example). Required key
 """
 
 import html
+import mimetypes
 import re
 import smtplib
 import sys
@@ -170,12 +173,17 @@ def wrap_html(body_html: str, title: str) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        sys.exit("Usage: python3 scripts/send_report.py <path/to/report.md>")
+    if len(sys.argv) < 2:
+        sys.exit("Usage: python3 scripts/send_report.py <path/to/report.md> [extra_attachment ...]")
 
     report_path = Path(sys.argv[1])
     if not report_path.exists():
         sys.exit(f"Report not found: {report_path}")
+
+    extra_paths = [Path(p) for p in sys.argv[2:]]
+    for p in extra_paths:
+        if not p.exists():
+            sys.exit(f"Attachment not found: {p}")
 
     env = load_env(Path(__file__).parent / ".env")
     sender = env.get("GMAIL_ADDRESS")
@@ -204,11 +212,23 @@ def main() -> None:
         filename=report_path.stem + ".html",
     )
 
+    # Attach any extra files passed on the command line (e.g. an .xlsx workbook).
+    for p in extra_paths:
+        ctype, _ = mimetypes.guess_type(p.name)
+        maintype, _, subtype = (ctype or "application/octet-stream").partition("/")
+        msg.add_attachment(
+            p.read_bytes(),
+            maintype=maintype,
+            subtype=subtype or "octet-stream",
+            filename=p.name,
+        )
+
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(sender, app_password)
         server.send_message(msg)
 
-    print(f"Sent '{report_path.name}' to {recipient} (HTML body + .html attachment)")
+    extras = f" + {len(extra_paths)} attachment(s)" if extra_paths else ""
+    print(f"Sent '{report_path.name}' to {recipient} (HTML body + .html attachment{extras})")
 
 
 if __name__ == "__main__":

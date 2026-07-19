@@ -50,6 +50,9 @@ If the profile already exists, skip setup and go straight to processing.
 7. **Offer to email it.** Ask the user if they want it emailed. If yes, run:
    `python3 scripts/send_report.py reports/snapshot_<today>/report.md`
    (Requires `scripts/.env` to be configured — see `scripts/.env.example`.)
+   To also attach files (e.g. an `.xlsx` export of goals/ledger), pass extra paths after the
+   report: `python3 scripts/send_report.py <report.md> <goals_and_ledger.xlsx> ...`. Each extra
+   path is attached with its detected MIME type. Generate xlsx exports with `openpyxl`.
 
 ## Report format (`report.md`)
 
@@ -58,13 +61,28 @@ Produce a clear Markdown report with these sections:
 1. **Header** — report date and the period covered.
 2. **YTD summary** — total money spent, total saved, total debt accumulated/paid down this year.
 3. **Money available for expenses** — income minus committed/spent, for the current period.
+   Present this as a **waterfall** (take-home → −fixed bills → −daily budget → flexible pot) and
+   make the **two-pool model** explicit so the user isn't confused about what money is where:
+   - **Pool ① Daily living** (`profile.daily_budget`, ~£18/day or ~£15/day crunch) covers
+     groceries, transport, and **eating out** — nothing else.
+   - **Pool ② The flexible pot** (surplus after fixed bills + daily budget) covers **both** goal
+     saving/debt payoff **and** discretionary shopping + entertainment.
+   State plainly that shopping/entertainment are NOT in the daily budget — they come from the
+   same pot as goals, so every £1 spent there is £1 not going to a goal. When asked "how much can
+   I spend on eating out / shopping / entertainment", give concrete monthly caps derived from the
+   pools (eating out lives in the daily budget; shopping+entertainment is a hard carve-out from
+   pool ②, small because dated goals usually exceed the pot).
 4. **Daily spending budget** — the day-to-day discretionary allowance from
    `profile.daily_budget` (currently ~£18/day, or ~£15/day in crunch months). Show the daily
    number, what it covers (groceries, transport, eating out) and what it excludes (fixed bills
    and goal savings). If the ledger has this period's variable spend, show actual vs. budget
-   (spent so far, remaining for the period, pace per remaining day).
+   (spent so far, remaining for the period, pace per remaining day). Split actuals into
+   daily-living spend vs. pool-② spend (shopping/entertainment) so leaks are visible.
 5. **Goal tracking** — for each goal: target, saved so far, % complete, on-track / behind, and
-   the monthly saving needed to hit the target date. Note any income scenario from
+   the monthly saving needed to hit the target date. Compute **£/month needed from days left as
+   of today**: `(target − saved) ÷ (days_left ÷ 30.44)`; show it as a table column alongside
+   days-left, and mark goals with no target date as N/A. Call out when combined dated-goal demand
+   exceeds the flexible pot (the goals must then be sequenced). Note any income scenario from
    `profile.income_scenarios` and how it would change the plan if it materializes.
 6. **Spending breakdown** — by category, with the biggest movers called out.
 7. **Pitfalls to avoid** — concrete, personalized warnings (e.g. overspending category,
